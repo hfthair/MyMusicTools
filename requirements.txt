@@ -1,6 +1,15 @@
+autopep8==1.5.4
 certifi==2020.6.20
 chardet==3.0.4
+fire==0.3.1
 idna==2.10
 pkg-resources==0.0.0
+pycodestyle==2.6.0
 requests==2.24.0
+six==1.15.0
+termcolor==1.1.0
+toml==0.10.1
+Unidecode==1.1.1
 urllib3==1.25.10
+youtube-dl==2020.9.20
+ytm @ git+https://github.com/tombulled/python-youtube-music.git@90082e25e865863d2baea9f653f0477513bcd268

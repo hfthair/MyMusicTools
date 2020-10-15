@@ -7,7 +7,7 @@ with open('user_agents.txt', 'r') as f:
 def random_ua():
     return random.choice(agents)
 
-def netease_playlist(play_id, dst):
+def netease_playlist(play_id):
     url = f"https://api.mtnhao.com/playlist/detail?id={play_id}"
     rsp = requests.request("GET", url, headers={'user-agent': random_ua()}).json()
     sid = [i["id"] for i in rsp["playlist"]["trackIds"]]
@@ -17,10 +17,12 @@ def netease_playlist(play_id, dst):
         strid = str(sid[i:i+200])
         url = f"http://music.163.com/api/song/detail?ids={strid}"
         rsp = requests.request("GET", url, headers={'user-agent': random_ua()}).json()
-        songs = songs + rsp["songs"]
 
-    with open(dst, 'w', encoding='utf8') as f:
-        json.dump(r, f)
+        for s in rsp["songs"]:
+            title = s['name']
+            artists = ";".join([i["name"] for i in s["artists"]])
+
+            songs.append((title,artists))
 
     return songs
 
@@ -28,7 +30,8 @@ def netease_playlist(play_id, dst):
 if __name__ == '__main__':
     import sys
     import json
-    if len(sys.argv) != 3:
+    import pprint
+    if len(sys.argv) != 2:
         sys.exit(0)
 
-    r = netease_playlist(sys.argv[1], sys.argv[2])
+    r = netease_playlist(sys.argv[1])

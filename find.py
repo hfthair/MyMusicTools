@@ -1,54 +1,102 @@
 import os
 import json
+import random
+import time
 import requests
+import ytm
+
+api = ytm.YouTubeMusic()
+
+repl = str.maketrans(
+    "áéúíóàèìòù",
+    "aeuioaeuio"
+)
+
 
 def escape(x):
-    return x.replace('&', '').replace('?', '').replace('=', '').replace('#', '')
+    x = x.replace('&', '').replace('?', '').replace('=', '').replace('#', '')
+    return x.translate(repl).lower().strip()
 
-def find(src, dst):
-    with open(src, 'r', encoding='utf8') as f:
-        songs = json.load(f)
 
-    out = {}
-    if os.path.isfile(dst):
-        with open(dst, 'r', encoding='utf8') as f:
-            out = json.load(f)
+def format(found):
+    return f'{found["title"]}({found["artists"]})<{found["source"]}>'
 
-    for s in songs:
-        name = escape(s['name'])
-        artist = ''
-        if s['artists']:
-            artist = s['artists'][0]['name']
-        artist = escape(artist)
-        key = f"{name}-{artist}"
 
-        if key in out and "url" in out[key] and out[key]["url"]:
-            print('## ', key, "[already done] ==>",
-                out[key]["name"], '-', ";".join([i["name"] for i in out[key]["artists"]]))
+def find(src, progress):
+    for title, artists in src:
+        title = escape(title)
+        artist = escape(artists.split(';')[0])
+        key = f'{title}({artist})'
+
+        print(f' # {title}({artist})\t', end='')
+        if key in progress:
+            print(' [already done] ==>', format(progress[key]))
             continue
 
-        param = f"{artist}+{name}"
-        for _ in range(2):
-            print('## ', key, end="")
-            r = requests.get(f"http://localhost:3400/song/find?keyword={param}")
-            rsp = r.json()
-            if "data" in rsp and "url" in rsp["data"] and rsp["data"]["url"]:
-                out[key] = rsp["data"]
-                new_name = rsp["data"]["name"]
-                new_artist = ''
-                if rsp["data"]["artists"]:
-                    new_artist = rsp["data"]["artists"][0]["name"]
-                if not new_artist:
-                    new_artist = artist
-                print(' ==>', new_name, '-', new_artist)
-                break
-            else:
-                print("==!! Failed: ", key)
-                # print(rsp)
-                param = f"{name}"
+        r = None
+        try:
+            r = find_ytm(title, artist)
+        except:
+            print(' exception search ytm.')
+        if not r:
+            try:
+                r = find_migu(title, artist)
+            except:
+                print(' exception search migu.')
+        if r:
+            print(' ==>', format(r))
+            progress[key] = r
+        else:
+            print(' ==> not found')
+    return progress
 
-    with open(dst, 'w', encoding='utf8') as f:
-        json.dump(out, f)
+
+def find_ytm(title, artist):
+    time.sleep(random.random() + 0.3)
+    title = title.lower()
+    artist = artist.lower()
+
+    r = api.search(title)
+    r = [{
+        'title': escape(i['name']),
+        'artists': escape(';'.join([j['name'] for j in i['artists']])),
+        'url': f'https://music.youtube.com/watch?v={i["id"]}',
+        'source': 'ytm'
+    } for i in r['songs']]
+
+    match = [i for i in r if title == i['title'] and artist == i['artists']]
+    if not match:
+        match = [i for i in r if title in i['title']
+                 and artist in i['artists']]
+    if not match:
+        match = [i for i in r if title == i['title']]
+    if not match:
+        match = [i for i in r if i['title'].startswith(title) or title.startswith(i['title'])]
+    if match:
+        return match[0]
+    else:
+        return None
+
+
+def find_migu(title, artist):
+    param = f"{artist}+{title}"
+    for _ in range(2):
+        rsp = requests.get(
+            f"http://localhost:3400/song/find?keyword={param}", timeout=3).json()
+        if "data" in rsp and "url" in rsp["data"] and rsp["data"]["url"]:
+            found = {
+                'title': escape(rsp["data"]["name"]),
+                'artists': escape(';'.join([i["name"] for i in rsp["data"]["artists"]])),
+                'url': rsp["data"]["url"],
+                'source': 'migu'
+            }
+            if (title == found['title'] and artist == found['artists']) or \
+                    title in found['title'] or found['title'] in title:
+                return found
+        print("\n    =!! not found, retrying... ")
+        param = f"{title}"
+
+    return None
 
 
 if __name__ == '__main__':
